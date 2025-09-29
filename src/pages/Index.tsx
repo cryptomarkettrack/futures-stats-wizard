@@ -18,7 +18,7 @@ const Index = () => {
   const [daysBack, setDaysBack] = useState("60");
   const [timeframe, setTimeframe] = useState("1h");
   const [metric, setMetric] = useState("returns");
-  const [timezone, setTimezone] = useState("UTC");
+  const [timezone, setTimezone] = useState("Europe/Sofia");
   const [exchange, setExchange] = useState("binance");
   const [specificPair, setSpecificPair] = useState("");
   const [isLoading, setIsLoading] = useState(false);

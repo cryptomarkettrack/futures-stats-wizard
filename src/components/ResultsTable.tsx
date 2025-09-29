@@ -47,7 +47,7 @@ export const ResultsTable = ({ data, timeframe, timeSlots }: ResultsTableProps) 
   }
 
   return (
-    <div className="bg-card border border-border rounded-lg overflow-hidden">
+    <div className="bg-card border border-border rounded-lg">
       <div className="p-4 border-b border-border">
         <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
           <TrendingUp className="h-5 w-5 text-primary" />

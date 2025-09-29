@@ -115,6 +115,8 @@ export const ConfigurationPanel = ({
             </SelectTrigger>
             <SelectContent className="bg-popover border-border">
               <SelectItem value="UTC">UTC (UTC+0)</SelectItem>
+              <SelectItem value="Europe/Sofia">Europe/Sofia (UTC+3)</SelectItem>
+              <SelectItem value="America/New_York">New York (UTC-5)</SelectItem>
               <SelectItem value="Asia/Bangkok">Bangkok (UTC+7)</SelectItem>
               <SelectItem value="America/New_York">New York (UTC-5)</SelectItem>
               <SelectItem value="Europe/London">London (UTC+0)</SelectItem>
