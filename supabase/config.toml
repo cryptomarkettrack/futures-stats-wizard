@@ -1,0 +1,4 @@
+project_id = "azuvnofevmuhcwnxowvr"
+
+[functions.binance-analytics]
+verify_jwt = false
