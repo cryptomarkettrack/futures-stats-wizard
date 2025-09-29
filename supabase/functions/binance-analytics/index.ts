@@ -10,6 +10,8 @@ interface RequestBody {
   timeframe: string;
   metric: string;
   timezone: string;
+  exchange: string;
+  specificPair?: string;
 }
 
 interface OHLCVData {
@@ -27,24 +29,57 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Binance analytics function invoked');
-    const { daysBack, timeframe, metric, timezone }: RequestBody = await req.json();
+    console.log('Crypto analytics function invoked');
+    const { daysBack, timeframe, metric, timezone, exchange: exchangeName, specificPair }: RequestBody = await req.json();
     
-    console.log('Request params:', { daysBack, timeframe, metric, timezone });
+    console.log('Request params:', { daysBack, timeframe, metric, timezone, exchange: exchangeName, specificPair });
 
     // Import ccxt dynamically
     const ccxt = await import('https://esm.sh/ccxt@4.2.25');
-    const exchange = new ccxt.binance({ enableRateLimit: true });
+    
+    // Initialize the selected exchange
+    let exchange;
+    switch (exchangeName) {
+      case 'binance':
+        exchange = new ccxt.binance({ enableRateLimit: true });
+        break;
+      case 'coinbase':
+        exchange = new ccxt.coinbase({ enableRateLimit: true });
+        break;
+      case 'kraken':
+        exchange = new ccxt.kraken({ enableRateLimit: true });
+        break;
+      case 'bybit':
+        exchange = new ccxt.bybit({ enableRateLimit: true });
+        break;
+      case 'okx':
+        exchange = new ccxt.okx({ enableRateLimit: true });
+        break;
+      default:
+        exchange = new ccxt.binance({ enableRateLimit: true });
+    }
 
     // Fetch all USDT futures symbols
     console.log('Loading markets...');
     await exchange.loadMarkets();
     const markets = exchange.markets;
-    const futuresSymbols = Object.keys(markets).filter(
-      symbol => markets[symbol].type === 'swap' && symbol.endsWith('/USDT:USDT')
-    );
-
-    console.log(`Found ${futuresSymbols.length} futures symbols`);
+    
+    let futuresSymbols: string[];
+    if (specificPair) {
+      // If specific pair is provided, only analyze that pair
+      if (markets[specificPair]) {
+        futuresSymbols = [specificPair];
+        console.log(`Analyzing specific pair: ${specificPair}`);
+      } else {
+        throw new Error(`Pair ${specificPair} not found on ${exchangeName}`);
+      }
+    } else {
+      // Otherwise, get all USDT futures symbols
+      futuresSymbols = Object.keys(markets).filter(
+        symbol => markets[symbol].type === 'swap' && symbol.endsWith('/USDT:USDT')
+      );
+      console.log(`Found ${futuresSymbols.length} futures symbols`);
+    }
 
     // Calculate time range
     const endTime = Date.now();
@@ -89,8 +124,8 @@ serve(async (req) => {
     const timeSlots = generateTimeSlots(timeframe);
     console.log(`Generated ${timeSlots.length} time slots`);
 
-    // Process symbols (limit to first 50 for demo to avoid rate limits)
-    const symbolsToProcess = futuresSymbols.slice(0, 50);
+    // Process symbols (limit to first 50 for demo to avoid rate limits, unless specific pair is requested)
+    const symbolsToProcess = specificPair ? futuresSymbols : futuresSymbols.slice(0, 50);
     const results = [];
 
     for (const symbol of symbolsToProcess) {
@@ -187,7 +222,7 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Successfully processed ${results.length} symbols`);
+    console.log(`Successfully processed ${results.length} symbols on ${exchangeName}`);
 
     return new Response(
       JSON.stringify({ results, timeSlots }),
@@ -197,7 +232,7 @@ serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error('Error in binance-analytics function:', error);
+    console.error('Error in crypto-analytics function:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return new Response(
       JSON.stringify({ error: errorMessage }),

@@ -19,6 +19,8 @@ const Index = () => {
   const [timeframe, setTimeframe] = useState("1h");
   const [metric, setMetric] = useState("returns");
   const [timezone, setTimezone] = useState("UTC");
+  const [exchange, setExchange] = useState("binance");
+  const [specificPair, setSpecificPair] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<SymbolData[]>([]);
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
@@ -26,7 +28,7 @@ const Index = () => {
 
   const handleCalculate = async () => {
     setIsLoading(true);
-    console.log("Starting calculation with params:", { daysBack, timeframe, metric, timezone });
+    console.log("Starting calculation with params:", { daysBack, timeframe, metric, timezone, exchange, specificPair });
 
     try {
       const { data, error } = await supabase.functions.invoke("binance-analytics", {
@@ -35,6 +37,8 @@ const Index = () => {
           timeframe,
           metric,
           timezone,
+          exchange,
+          specificPair: specificPair.trim() || undefined,
         },
       });
 
@@ -72,10 +76,10 @@ const Index = () => {
       <div className="max-w-[1600px] mx-auto space-y-6">
         <header className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">
-            Binance Futures Analytics Calculator
+            Crypto Futures Analytics Calculator
           </h1>
           <p className="text-muted-foreground">
-            Calculate mean log returns and volumes for Binance futures symbols across different timeframes
+            Calculate mean log returns and volumes for crypto futures symbols across different exchanges and timeframes
           </p>
         </header>
 
@@ -88,6 +92,10 @@ const Index = () => {
           setMetric={setMetric}
           timezone={timezone}
           setTimezone={setTimezone}
+          exchange={exchange}
+          setExchange={setExchange}
+          specificPair={specificPair}
+          setSpecificPair={setSpecificPair}
           onCalculate={handleCalculate}
           isLoading={isLoading}
         />

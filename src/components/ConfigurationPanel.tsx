@@ -19,6 +19,10 @@ interface ConfigurationPanelProps {
   setMetric: (value: string) => void;
   timezone: string;
   setTimezone: (value: string) => void;
+  exchange: string;
+  setExchange: (value: string) => void;
+  specificPair: string;
+  setSpecificPair: (value: string) => void;
   onCalculate: () => void;
   isLoading: boolean;
 }
@@ -32,6 +36,10 @@ export const ConfigurationPanel = ({
   setMetric,
   timezone,
   setTimezone,
+  exchange,
+  setExchange,
+  specificPair,
+  setSpecificPair,
   onCalculate,
   isLoading,
 }: ConfigurationPanelProps) => {
@@ -46,7 +54,7 @@ export const ConfigurationPanel = ({
         <h2 className="text-xl font-semibold text-foreground">Configuration</h2>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
         <div className="space-y-2">
           <Label htmlFor="daysBack" className="text-muted-foreground text-sm">
             Days Back:
@@ -115,6 +123,39 @@ export const ConfigurationPanel = ({
           </Select>
         </div>
 
+        <div className="space-y-2">
+          <Label htmlFor="exchange" className="text-muted-foreground text-sm">
+            Exchange:
+          </Label>
+          <Select value={exchange} onValueChange={setExchange}>
+            <SelectTrigger id="exchange" className="bg-secondary border-border text-foreground">
+              <SelectValue placeholder="Select exchange" />
+            </SelectTrigger>
+            <SelectContent className="bg-popover border-border">
+              <SelectItem value="binance">Binance</SelectItem>
+              <SelectItem value="coinbase">Coinbase</SelectItem>
+              <SelectItem value="kraken">Kraken</SelectItem>
+              <SelectItem value="bybit">Bybit</SelectItem>
+              <SelectItem value="okx">OKX</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="specificPair" className="text-muted-foreground text-sm">
+            Specific Pair (Optional):
+          </Label>
+          <Input
+            id="specificPair"
+            value={specificPair}
+            onChange={(e) => setSpecificPair(e.target.value)}
+            placeholder="e.g., BTC/USDT:USDT"
+            className="bg-secondary border-border text-foreground placeholder:text-muted-foreground"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end">
         <Button
           onClick={onCalculate}
           disabled={isLoading}

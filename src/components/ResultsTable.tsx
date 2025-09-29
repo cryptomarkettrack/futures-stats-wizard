@@ -56,7 +56,8 @@ export const ResultsTable = ({ data, timeframe, timeSlots }: ResultsTableProps) 
       </div>
 
       <ScrollArea className="h-[600px]">
-        <Table>
+        <div className="overflow-x-auto">
+          <Table>
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
               <TableHead className="sticky left-0 z-20 bg-card font-semibold text-foreground border-r border-border min-w-[150px]">
@@ -102,6 +103,7 @@ export const ResultsTable = ({ data, timeframe, timeSlots }: ResultsTableProps) 
             ))}
           </TableBody>
         </Table>
+        </div>
       </ScrollArea>
     </div>
   );
