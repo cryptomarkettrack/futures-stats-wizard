@@ -6,12 +6,13 @@ const corsHeaders = {
 };
 
 interface RequestBody {
-  daysBack: number;
+  action?: string;
+  daysBack?: number;
   timeframe: string;
-  metric: string;
-  timezone: string;
+  metric?: string;
   exchange: string;
   specificPair?: string;
+  maxDaysBack?: number;
 }
 
 interface OHLCVData {
@@ -30,12 +31,22 @@ serve(async (req) => {
 
   try {
     console.log('Crypto analytics function invoked');
-    const { daysBack, timeframe, metric, timezone, exchange: exchangeName, specificPair }: RequestBody = await req.json();
+    const requestBody: RequestBody = await req.json();
+    const { action, daysBack, timeframe, metric, exchange: exchangeName, specificPair, maxDaysBack } = requestBody;
     
-    console.log('Request params:', { daysBack, timeframe, metric, timezone, exchange: exchangeName, specificPair });
+    console.log('Request params:', requestBody);
+
+    // Handle backtest action
+    if (action === 'backtest') {
+      return await handleBacktest(exchangeName, timeframe, maxDaysBack!, specificPair);
+    }
 
     // Import ccxt dynamically
     const ccxt = await import('https://esm.sh/ccxt@4.2.25');
+    
+    if (!daysBack) {
+      throw new Error('daysBack parameter is required');
+    }
     
     // Initialize the selected exchange
     let exchange;
@@ -243,3 +254,213 @@ serve(async (req) => {
     );
   }
 });
+
+// Backtest handler function
+async function handleBacktest(
+  exchangeName: string,
+  timeframe: string,
+  maxDaysBack: number,
+  specificPair?: string
+) {
+  console.log(`Running backtest for ${maxDaysBack} windows`);
+  
+  const ccxt = await import('https://esm.sh/ccxt@4.2.25');
+  
+  // Initialize exchange
+  let exchange;
+  switch (exchangeName) {
+    case 'binance':
+      exchange = new ccxt.binance({ enableRateLimit: true });
+      break;
+    case 'coinbase':
+      exchange = new ccxt.coinbase({ enableRateLimit: true });
+      break;
+    case 'kraken':
+      exchange = new ccxt.kraken({ enableRateLimit: true });
+      break;
+    case 'bybit':
+      exchange = new ccxt.bybit({ enableRateLimit: true });
+      break;
+    case 'okx':
+      exchange = new ccxt.okx({ enableRateLimit: true });
+      break;
+    default:
+      exchange = new ccxt.binance({ enableRateLimit: true });
+  }
+
+  await exchange.loadMarkets();
+  const markets = exchange.markets;
+  
+  // Get symbol to test
+  let symbol: string;
+  if (specificPair && markets[specificPair]) {
+    symbol = specificPair;
+  } else {
+    // Use first available USDT futures symbol
+    const futuresSymbols = Object.keys(markets).filter(
+      s => markets[s].type === 'swap' && s.endsWith('/USDT:USDT')
+    );
+    if (futuresSymbols.length === 0) {
+      throw new Error('No USDT futures symbols found');
+    }
+    symbol = futuresSymbols[0];
+  }
+
+  console.log(`Backtesting symbol: ${symbol}`);
+
+  const ccxtTimeframe = timeframe === '15m' ? '15m' : timeframe === '4h' ? '4h' : timeframe === '1d' ? '1d' : '1h';
+  
+  const backtestResults = [];
+
+  // Test each window from 1 to maxDaysBack
+  for (let windowDays = 1; windowDays <= maxDaysBack; windowDays++) {
+    console.log(`Testing ${windowDays} days back window...`);
+    
+    try {
+      // Total data needed: windowDays for training + additional days for testing
+      const totalDays = windowDays + 30; // Get extra 30 days for testing
+      const endTime = Date.now();
+      const startTime = endTime - (totalDays * 24 * 60 * 60 * 1000);
+
+      // Fetch data
+      const ohlcv = await exchange.fetchOHLCV(
+        symbol,
+        ccxtTimeframe,
+        startTime,
+        undefined,
+        { limit: 1000 }
+      );
+
+      if (!ohlcv || ohlcv.length < windowDays * 24) {
+        console.log(`Insufficient data for ${windowDays} days window`);
+        continue;
+      }
+
+      // Split into training and testing data
+      const trainingSize = Math.floor(ohlcv.length * (windowDays / totalDays));
+      const trainingData = ohlcv.slice(0, trainingSize);
+      const testingData = ohlcv.slice(trainingSize);
+
+      // Analyze training data to find best time slots
+      const slotPerformance: { [key: string]: { returns: number[]; avgReturn: number } } = {};
+      
+      for (const candle of trainingData) {
+        const date = new Date(Number(candle[0]));
+        let slotKey: string;
+
+        if (timeframe === '1h') {
+          slotKey = `${date.getUTCHours().toString().padStart(2, '0')}:00`;
+        } else if (timeframe === '4h') {
+          const hour = Math.floor(date.getUTCHours() / 4) * 4;
+          slotKey = `${hour.toString().padStart(2, '0')}:00`;
+        } else if (timeframe === '1d') {
+          slotKey = 'Daily';
+        } else if (timeframe === '15m') {
+          const hour = date.getUTCHours();
+          const minute = Math.floor(date.getUTCMinutes() / 15) * 15;
+          slotKey = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        } else {
+          continue;
+        }
+
+        if (!slotPerformance[slotKey]) {
+          slotPerformance[slotKey] = { returns: [], avgReturn: 0 };
+        }
+
+        const open = Number(candle[1]);
+        const close = Number(candle[4]);
+        if (open > 0 && close > 0) {
+          const logReturn = Math.log(close / open);
+          slotPerformance[slotKey].returns.push(logReturn);
+        }
+      }
+
+      // Calculate average returns for each slot
+      for (const slot in slotPerformance) {
+        const returns = slotPerformance[slot].returns;
+        if (returns.length > 0) {
+          slotPerformance[slot].avgReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+        }
+      }
+
+      // Get top 3 best performing slots
+      const sortedSlots = Object.entries(slotPerformance)
+        .sort(([, a], [, b]) => b.avgReturn - a.avgReturn)
+        .slice(0, 3)
+        .map(([slot]) => slot);
+
+      console.log(`Top slots for ${windowDays}d: ${sortedSlots.join(', ')}`);
+
+      // Test these slots on testing data
+      const trades = [];
+      for (const candle of testingData) {
+        const date = new Date(Number(candle[0]));
+        let slotKey: string;
+
+        if (timeframe === '1h') {
+          slotKey = `${date.getUTCHours().toString().padStart(2, '0')}:00`;
+        } else if (timeframe === '4h') {
+          const hour = Math.floor(date.getUTCHours() / 4) * 4;
+          slotKey = `${hour.toString().padStart(2, '0')}:00`;
+        } else if (timeframe === '1d') {
+          slotKey = 'Daily';
+        } else if (timeframe === '15m') {
+          const hour = date.getUTCHours();
+          const minute = Math.floor(date.getUTCMinutes() / 15) * 15;
+          slotKey = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        } else {
+          continue;
+        }
+
+        // If this is one of our predicted good slots, record the trade
+        if (sortedSlots.includes(slotKey)) {
+          const open = Number(candle[1]);
+          const close = Number(candle[4]);
+          if (open > 0 && close > 0) {
+            const logReturn = Math.log(close / open);
+            trades.push(logReturn);
+          }
+        }
+      }
+
+      if (trades.length === 0) {
+        console.log(`No trades for ${windowDays} days window`);
+        continue;
+      }
+
+      // Calculate metrics
+      const winningTrades = trades.filter(t => t > 0);
+      const winRate = (winningTrades.length / trades.length) * 100;
+      const avgReturn = trades.reduce((sum, t) => sum + t, 0) / trades.length;
+      const bestTrade = Math.max(...trades);
+      const worstTrade = Math.min(...trades);
+      const totalPnL = trades.reduce((sum, t) => sum + t, 0);
+
+      backtestResults.push({
+        daysBack: windowDays,
+        winRate,
+        avgReturn,
+        bestTrade,
+        worstTrade,
+        totalPnL,
+        totalTrades: trades.length,
+      });
+
+      // Rate limiting
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } catch (error) {
+      console.error(`Error testing ${windowDays} days window:`, error);
+      continue;
+    }
+  }
+
+  console.log(`Backtest complete. Tested ${backtestResults.length} windows`);
+
+  return new Response(
+    JSON.stringify({ backtestResults }),
+    { 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200 
+    }
+  );
+}

@@ -17,8 +17,6 @@ interface ConfigurationPanelProps {
   setTimeframe: (value: string) => void;
   metric: string;
   setMetric: (value: string) => void;
-  timezone: string;
-  setTimezone: (value: string) => void;
   exchange: string;
   setExchange: (value: string) => void;
   specificPair: string;
@@ -34,8 +32,6 @@ export const ConfigurationPanel = ({
   setTimeframe,
   metric,
   setMetric,
-  timezone,
-  setTimezone,
   exchange,
   setExchange,
   specificPair,
@@ -101,26 +97,6 @@ export const ConfigurationPanel = ({
             <SelectContent className="bg-popover border-border">
               <SelectItem value="returns">Returns + Positive %</SelectItem>
               <SelectItem value="volume">Quote Volume</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="timezone" className="text-muted-foreground text-sm">
-            Timezone:
-          </Label>
-          <Select value={timezone} onValueChange={setTimezone}>
-            <SelectTrigger id="timezone" className="bg-secondary border-border text-foreground">
-              <SelectValue placeholder="Select timezone" />
-            </SelectTrigger>
-            <SelectContent className="bg-popover border-border">
-              <SelectItem value="UTC">UTC (UTC+0)</SelectItem>
-              <SelectItem value="Europe/Sofia">Europe/Sofia (UTC+3)</SelectItem>
-              <SelectItem value="America/New_York">New York (UTC-5)</SelectItem>
-              <SelectItem value="Asia/Bangkok">Bangkok (UTC+7)</SelectItem>
-              <SelectItem value="America/New_York">New York (UTC-5)</SelectItem>
-              <SelectItem value="Europe/London">London (UTC+0)</SelectItem>
-              <SelectItem value="Asia/Tokyo">Tokyo (UTC+9)</SelectItem>
             </SelectContent>
           </Select>
         </div>

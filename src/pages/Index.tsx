@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { ConfigurationPanel } from "@/components/ConfigurationPanel";
 import { ResultsTable } from "@/components/ResultsTable";
+import { BacktestPanel } from "@/components/BacktestPanel";
+import { BacktestResults } from "@/components/BacktestResults";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -14,21 +16,33 @@ interface SymbolData {
   timeSlots: { [key: string]: TimeSlotData };
 }
 
+interface BacktestWindow {
+  daysBack: number;
+  winRate: number;
+  avgReturn: number;
+  bestTrade: number;
+  worstTrade: number;
+  totalPnL: number;
+  totalTrades: number;
+}
+
 const Index = () => {
   const [daysBack, setDaysBack] = useState("60");
   const [timeframe, setTimeframe] = useState("1h");
   const [metric, setMetric] = useState("returns");
-  const [timezone, setTimezone] = useState("Europe/Sofia");
   const [exchange, setExchange] = useState("binance");
   const [specificPair, setSpecificPair] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<SymbolData[]>([]);
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
+  const [maxDaysBack, setMaxDaysBack] = useState("5");
+  const [backtestResults, setBacktestResults] = useState<BacktestWindow[]>([]);
+  const [isBacktesting, setIsBacktesting] = useState(false);
   const { toast } = useToast();
 
   const handleCalculate = async () => {
     setIsLoading(true);
-    console.log("Starting calculation with params:", { daysBack, timeframe, metric, timezone, exchange, specificPair });
+    console.log("Starting calculation with params:", { daysBack, timeframe, metric, exchange, specificPair });
 
     try {
       const { data, error } = await supabase.functions.invoke("binance-analytics", {
@@ -36,7 +50,6 @@ const Index = () => {
           daysBack: parseInt(daysBack),
           timeframe,
           metric,
-          timezone,
           exchange,
           specificPair: specificPair.trim() || undefined,
         },
@@ -71,6 +84,58 @@ const Index = () => {
     }
   };
 
+  const handleBacktest = async () => {
+    if (results.length === 0) {
+      toast({
+        title: "No Data",
+        description: "Please run the scanner first before backtesting.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsBacktesting(true);
+    console.log("Starting backtest with params:", { maxDaysBack, timeframe, exchange, specificPair });
+
+    try {
+      const { data, error } = await supabase.functions.invoke("binance-analytics", {
+        body: {
+          action: "backtest",
+          maxDaysBack: parseInt(maxDaysBack),
+          timeframe,
+          exchange,
+          specificPair: specificPair.trim() || undefined,
+        },
+      });
+
+      if (error) {
+        console.error("Backtest error:", error);
+        throw error;
+      }
+
+      console.log("Backtest results:", data);
+
+      if (data && data.backtestResults) {
+        setBacktestResults(data.backtestResults);
+        toast({
+          title: "Backtest Complete",
+          description: `Tested ${data.backtestResults.length} different windows.`,
+        });
+      } else {
+        throw new Error("Invalid backtest data format received");
+      }
+    } catch (error: any) {
+      console.error("Error running backtest:", error);
+      toast({
+        title: "Backtest Failed",
+        description: error.message || "Failed to run backtest. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBacktesting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-[1600px] mx-auto space-y-6">
@@ -90,8 +155,6 @@ const Index = () => {
           setTimeframe={setTimeframe}
           metric={metric}
           setMetric={setMetric}
-          timezone={timezone}
-          setTimezone={setTimezone}
           exchange={exchange}
           setExchange={setExchange}
           specificPair={specificPair}
@@ -101,6 +164,16 @@ const Index = () => {
         />
 
         <ResultsTable data={results} timeframe={timeframe} timeSlots={timeSlots} />
+
+        <BacktestPanel
+          maxDaysBack={maxDaysBack}
+          setMaxDaysBack={setMaxDaysBack}
+          onRunBacktest={handleBacktest}
+          isLoading={isBacktesting}
+          disabled={results.length === 0}
+        />
+
+        <BacktestResults results={backtestResults} />
       </div>
     </div>
   );
